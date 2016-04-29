@@ -16,4 +16,6 @@ UTILS_TEST() {
 	
 	UTIL_ASSERT_STRING_COMPARE(str2.at(0), "Wonderful;ways;of;thinking;this");
 	UTIL_ASSERT_STRING_COMPARE(str2.at(1), "is;great");
+
+	TEST_SUCCESS();
 }

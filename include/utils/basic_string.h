@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <utility>
+#include <initializer_list>
 #include <type_traits>
 
 namespace utils { inline namespace basic_string {
@@ -22,6 +23,14 @@ namespace utils { inline namespace basic_string {
 			
 			template<typename delimiterT>
 			static std::pair<string_type, string_type> split_string_once(const string_type&, delimiterT);
+			
+			template<typename character_setT>
+			static string_type trim_string(const string_type&, character_setT,
+				typename std::enable_if<std::is_member_function_pointer<decltype(&character_setT::is_character)>::value>::type* = nullptr);
+				
+			template<typename character_setT>
+			static string_type trim_string(const string_type&, character_setT,
+				typename std::enable_if<std::is_integral<character_setT>::value>::type* = nullptr);
 		};
 		
 		template<typename delimiterT>
@@ -49,6 +58,57 @@ namespace utils { inline namespace basic_string {
 	
 	/////////////////////////////////////
 	//// utils::basic_string DECLARATIONS
+	
+	template<typename charT>
+	class single_character_set {
+		const charT& c_;
+	public:
+		single_character_set(const charT& c)
+			: c_(c) { }
+			
+		inline bool is_character(charT in_c) const { return in_c == c_; }
+	};
+	
+	template<typename charT>
+	class basic_character_set {
+		const std::initializer_list<charT> characters_;
+	public:
+		basic_character_set(std::initializer_list<charT> chars)
+			: characters_(chars) { }
+		
+		inline bool is_character(charT in_c) const {
+			for(charT c : characters_) {
+				if(c == in_c) return true;
+			}
+			
+			return false;
+		}
+	};
+	
+	template<typename charT>
+	class whitespace_character_set;
+	
+	template<>
+	class whitespace_character_set<char> {
+	public:
+		
+		bool is_character(char c) const {
+			// TODO: Make this complete.
+			return false
+				|| c == ' '
+				|| c == '\n'
+				|| c == '\r'
+				|| c == '\t';
+		}
+		
+	};
+	
+#ifdef __cpp_variable_templates
+	
+	template<typename charT>
+	constexpr whitespace_character_set<charT> whitespace_characters;
+	
+#endif
 	
 	/** Splits the string by a delimiter and returns the string split in a vector. The delimiter type
 	    can be a single character or an entire string. */
@@ -78,6 +138,20 @@ namespace utils { inline namespace basic_string {
 	template<typename delimiterT = std::string::value_type>
 	inline std::pair<std::string, std::string> split_string_once(const char* str, delimiterT delimiter) {
 		return split_string_once<std::string, delimiterT>(std::string(str), delimiter);
+	}
+	
+	template<typename stringT, typename character_setT = basic_character_set<typename stringT::value_type>>
+	inline stringT trim_string(const stringT& str, const character_setT& character_set) {
+		return detail::basic_string_utils<
+			typename stringT::value_type,
+			typename stringT::traits_type,
+			typename stringT::allocator_type
+		>::trim_string(str, character_set);
+	}
+	
+	template<typename character_setT = basic_character_set<typename std::string::value_type>>
+	inline std::string trim_string(const char* str, const character_setT& character_set) {
+		return trim_string<std::string, character_setT>(std::string(str), character_set);
 	}
 	
 	////////////////////////////////////
@@ -124,6 +198,44 @@ namespace utils { inline namespace basic_string {
 		}
 		
 		return outPair;
+	}
+	
+	template<typename charT, typename traitsT, typename allocatorT>
+	template<typename character_setT>
+	std::basic_string<charT, traitsT, allocatorT> detail::basic_string_utils<charT, traitsT, allocatorT>
+	::trim_string(const string_type& str, character_setT characterSet,
+		typename std::enable_if<std::is_member_function_pointer<decltype(&character_setT::is_character)>::value>::type*) {
+		constexpr auto npos = string_type::npos;
+		
+		std::size_t startIndex = 0;
+		std::size_t endIndex = npos;
+		
+		for(auto i=0; str.length() > i; i++) {
+			auto c = str[i];
+			
+			if(!characterSet.is_character(c)) {
+				startIndex = i;
+				break;
+			}
+		}
+		
+		for(auto i=str.length()-1; i != 0; i--) {
+			auto c = str[i];
+			if(!characterSet.is_character(c)) {
+				endIndex = i+1;
+				break;
+			}
+		}
+		
+		return str.substr(startIndex, endIndex - startIndex);
+	}
+	
+	template<typename charT, typename traitsT, typename allocatorT>
+	template<typename character_setT>
+	std::basic_string<charT, traitsT, allocatorT> detail::basic_string_utils<charT, traitsT, allocatorT>
+	::trim_string(const string_type& str, character_setT characterSet,
+		typename std::enable_if<std::is_integral<character_setT>::value>::type*) {
+		return trim_string(str, single_character_set<character_setT>(characterSet));
 	}
 	
 }}// namespace utils::basic_string

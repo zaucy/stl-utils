@@ -12,4 +12,6 @@ UTILS_TEST() {
 		
 	UTIL_ASSERT_STRING_COMPARE(str2.first, "something");
 	UTIL_ASSERT_STRING_COMPARE(str2.second, "thething=other");
+	
+	TEST_SUCCESS();
 }
