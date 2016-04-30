@@ -136,7 +136,7 @@ namespace utils { inline namespace basic_string {
 			: character_set_(charSet) { }
 		
 		inline bool is_character(charT c, typename std::enable_if<!std::is_same<charT, character_setT>::value>::type* = nullptr) {
-			return character_set_.is_character();
+			return character_set_.is_character(c);
 		}
 	};
 	
@@ -268,7 +268,21 @@ namespace utils { inline namespace basic_string {
 		constexpr auto npos = string_type::npos;
 		
 		std::vector<std::basic_string<charT>> outSplit;
-		
+
+		for(auto i=0; str.length() > i; i++) {
+			auto c = str[i];
+			if(!characterSet.is_character(c)) {
+
+				for(auto n=i; str.length() > n; n++) {
+					auto otherC = str[n];
+					if(characterSet.is_character(otherC)) {
+						outSplit.push_back(str.substr(i, n - i));
+					}
+				}
+
+			}
+		}
+
 		return outSplit;
 	}
 	
