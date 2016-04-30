@@ -16,6 +16,8 @@ UTILS_TEST() {
 	
 	UTIL_ASSERT_STRING_COMPARE(str2.at(0), "Wonderful;ways;of;thinking;this");
 	UTIL_ASSERT_STRING_COMPARE(str2.at(1), "is;great");
-
+	
+	std::vector<std::string> csetStr = utils::split_string(string_to_split, utils::whitespace_character_set<char>());
+	
 	TEST_SUCCESS();
 }

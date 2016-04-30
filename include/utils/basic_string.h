@@ -8,6 +8,9 @@
 
 namespace utils { inline namespace basic_string {
 	
+	template<typename charT, typename character_setT>
+	class character_set_traits;
+	
 	/////////////////////////////////////
 	//// utils::basic_string DETAIL
 	namespace detail {
@@ -21,6 +24,9 @@ namespace utils { inline namespace basic_string {
 			template<typename delimiterT>
 			static std::vector<string_type> split_string(const string_type&, delimiterT);
 			
+			template<typename character_setT>
+			static std::vector<string_type> split_string(const string_type&, character_set_traits<charT, character_setT>);
+			
 			template<typename delimiterT>
 			static std::pair<string_type, string_type> split_string_once(const string_type&, delimiterT);
 			
@@ -31,7 +37,43 @@ namespace utils { inline namespace basic_string {
 			template<typename character_setT>
 			static string_type trim_string(const string_type&, character_setT,
 				typename std::enable_if<std::is_integral<character_setT>::value>::type* = nullptr);
+				
 		};
+		
+		template<typename stringT>
+		struct remove_cstring {
+			using type = typename std::remove_reference<typename std::remove_const<stringT>::type>::type;
+		};
+		
+		template<>
+		struct remove_cstring<const char*> {
+			using type = std::string;
+		};
+		
+		template<>
+		struct remove_cstring<const wchar_t*> {
+			using type = std::wstring;
+		};
+		
+		template<>
+		struct remove_cstring<const char16_t*> {
+			using type = std::u16string;
+		};
+		
+		template<>
+		struct remove_cstring<const char32_t*> {
+			using type = std::u32string;
+		};
+		
+		template<typename stringT>
+		inline typename remove_cstring<stringT>::type ensure_no_cstring(stringT str) {
+			return str;
+		}
+		
+		template<>
+		inline std::string ensure_no_cstring(const char* str) {
+			return std::string(str);
+		}
 		
 		template<typename delimiterT>
 		inline std::size_t _delimiter_size(const delimiterT& delimiter) {
@@ -85,6 +127,19 @@ namespace utils { inline namespace basic_string {
 		}
 	};
 	
+	template<typename charT, typename character_setT = basic_character_set<charT>>
+	class character_set_traits {
+		const character_setT& character_set_;
+	public:
+		
+		inline character_set_traits(const character_setT& charSet)
+			: character_set_(charSet) { }
+		
+		inline bool is_character(charT c, typename std::enable_if<!std::is_same<charT, character_setT>::value>::type* = nullptr) {
+			return character_set_.is_character();
+		}
+	};
+	
 	template<typename charT>
 	class whitespace_character_set;
 	
@@ -112,18 +167,44 @@ namespace utils { inline namespace basic_string {
 	
 	/** Splits the string by a delimiter and returns the string split in a vector. The delimiter type
 	    can be a single character or an entire string. */
-	template<typename stringT, typename delimiterT = typename stringT::value_type>
-	inline std::vector<stringT> split_string(const stringT& str, delimiterT delimiter) {
+	template<typename stringT, typename delimiterT = typename detail::remove_cstring<stringT>::type::value_type>
+	inline std::vector<typename detail::remove_cstring<stringT>::type> split_string(stringT str, delimiterT delimiter,
+		typename std::enable_if<false
+			|| std::is_same<typename detail::remove_cstring<stringT>::type, delimiterT>::value
+			|| std::is_same<typename detail::remove_cstring<stringT>::type::value_type, delimiterT>::value
+			|| std::is_same<typename detail::remove_cstring<stringT>::type, typename detail::remove_cstring<delimiterT>::type>::value
+		>::type* = nullptr) {
+		using non_cstringT = typename detail::remove_cstring<stringT>::type;
 		return detail::basic_string_utils<
-			typename stringT::value_type,
-			typename stringT::traits_type,
-			typename stringT::allocator_type
-		>::split_string(str, delimiter);
+			typename non_cstringT::value_type,
+			typename non_cstringT::traits_type,
+			typename non_cstringT::allocator_type
+		>::split_string(detail::ensure_no_cstring(str), delimiter);
 	}
 	
-	template<typename delimiterT = std::string::value_type>
-	inline std::vector<std::string> split_string(const char* str, delimiterT delimiter) {
-		return split_string<std::string, delimiterT>(std::string{str}, delimiter);
+	template<typename stringT, typename character_setT>
+	inline std::vector<typename detail::remove_cstring<stringT>::type> split_string(stringT str, character_setT charSet,
+		typename std::enable_if<true
+			&& !std::is_same<typename detail::remove_cstring<stringT>::type, character_setT>::value
+			&& !std::is_same<typename detail::remove_cstring<stringT>::type::value_type, character_setT>::value
+			&& !std::is_same<typename detail::remove_cstring<stringT>::type, typename detail::remove_cstring<character_setT>::type>::value
+		>::type* = nullptr) {
+		using non_cstringT = typename detail::remove_cstring<stringT>::type;
+		return detail::basic_string_utils<
+			typename non_cstringT::value_type,
+			typename non_cstringT::traits_type,
+			typename non_cstringT::allocator_type
+		>::split_string(detail::ensure_no_cstring(str), character_set_traits<typename non_cstringT::value_type, character_setT>(charSet));
+	}
+
+	template<typename stringT>
+	inline std::vector<typename detail::remove_cstring<stringT>::type> split_string(stringT str, std::initializer_list<typename detail::remove_cstring<stringT>::type::value_type> charList) {
+		using non_cstringT = typename detail::remove_cstring<stringT>::type;
+		return detail::basic_string_utils<
+			typename non_cstringT::value_type,
+			typename non_cstringT::traits_type,
+			typename non_cstringT::allocator_type
+		>::split_string(detail::ensure_no_cstring(str), character_set_traits<typename detail::remove_cstring<stringT>::type::value_type>(basic_character_set<typename detail::remove_cstring<stringT>::type::value_type>(charList)));
 	}
 	
 	template<typename stringT, typename delimiterT = typename stringT::value_type>
@@ -176,6 +257,17 @@ namespace utils { inline namespace basic_string {
 		}
 		
 		outSplit.push_back( str.substr(lastIndex) );
+		
+		return outSplit;
+	}
+	
+	template<typename charT, typename traitsT, typename allocatorT>
+	template<typename character_setT>
+	std::vector<std::basic_string<charT, traitsT, allocatorT>> detail::basic_string_utils<charT, traitsT, allocatorT>
+	::split_string(const string_type& str, character_set_traits<charT, character_setT> characterSet) {
+		constexpr auto npos = string_type::npos;
+		
+		std::vector<std::basic_string<charT>> outSplit;
 		
 		return outSplit;
 	}
