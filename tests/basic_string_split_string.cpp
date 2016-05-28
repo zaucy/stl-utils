@@ -23,7 +23,21 @@ UTILS_TEST() {
 	UTIL_ASSERT_STRING_COMPARE(csetStr.at(1), "nderful;ways;");
 	UTIL_ASSERT_STRING_COMPARE(csetStr.at(2), "f;th");
 	UTIL_ASSERT_STRING_COMPARE(csetStr.at(3), "nk");
-	UTIL_ASSERT_STRING_COMPARE(csetStr.at(4), "ng;this");
+	UTIL_ASSERT_STRING_COMPARE(csetStr.at(4), "ng;th");
+	UTIL_ASSERT_STRING_COMPARE(csetStr.at(5), "sw");
+	UTIL_ASSERT_STRING_COMPARE(csetStr.at(6), "rld");
+	UTIL_ASSERT_STRING_COMPARE(csetStr.at(7), "s;great");
+	
+	const char* string_to_split2 = "maaany charac  as of \n\n \t of tsome";
+	
+	std::vector<std::string> csetStr2 = utils::split_string(string_to_split2, utils::whitespace_character_set<char>());
+	
+	UTIL_ASSERT_STRING_COMPARE(csetStr2.at(0), "maaany");
+	UTIL_ASSERT_STRING_COMPARE(csetStr2.at(1), "charac");
+	UTIL_ASSERT_STRING_COMPARE(csetStr2.at(2), "as");
+	UTIL_ASSERT_STRING_COMPARE(csetStr2.at(3), "of");
+	UTIL_ASSERT_STRING_COMPARE(csetStr2.at(4), "of");
+	UTIL_ASSERT_STRING_COMPARE(csetStr2.at(5), "tsome");
 	
 	TEST_SUCCESS();
 }

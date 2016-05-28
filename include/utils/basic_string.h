@@ -37,7 +37,8 @@ namespace utils { inline namespace basic_string {
 			template<typename character_setT>
 			static string_type trim_string(const string_type&, character_setT,
 				typename std::enable_if<std::is_integral<character_setT>::value>::type* = nullptr);
-				
+			
+			static string_type replace_string(const string_type& str, const string_type& matching_str, const string_type& replace_str);
 		};
 		
 		template<typename stringT>
@@ -47,6 +48,11 @@ namespace utils { inline namespace basic_string {
 		
 		template<>
 		struct remove_cstring<const char*> {
+			using type = std::string;
+		};
+	
+		template<int strL>
+		struct remove_cstring<char[strL]> {
 			using type = std::string;
 		};
 		
@@ -235,6 +241,24 @@ namespace utils { inline namespace basic_string {
 		return trim_string<std::string, character_setT>(std::string(str), character_set);
 	}
 	
+	template<typename stringT, typename matchingStrT, typename replaceStrT>
+	inline typename detail::remove_cstring<stringT>::type replace_string(const stringT& str, const matchingStrT& matching_str, const replaceStrT& replace_str) {
+		using noncstringT = typename detail::remove_cstring<stringT>::type;
+		using noncmatchingStrT = typename detail::remove_cstring<matchingStrT>::type;
+		using noncreplaceStrT = typename detail::remove_cstring<replaceStrT>::type;
+		
+		static_assert
+			(  std::is_same<noncstringT, noncmatchingStrT>::value
+			&& std::is_same<noncstringT, noncreplaceStrT>::value
+			, "All replace_string parameters must be the same encoding.");
+		
+		return detail::basic_string_utils<
+			typename noncstringT::value_type,
+			typename noncstringT::traits_type,
+			typename noncstringT::allocator_type
+		>::replace_string( noncstringT(str), noncmatchingStrT(matching_str), noncreplaceStrT(replace_str) );
+	}
+	
 	////////////////////////////////////
 	//// utils::basic_string DEFINITIONS
 	
@@ -268,21 +292,33 @@ namespace utils { inline namespace basic_string {
 		constexpr auto npos = string_type::npos;
 		
 		std::vector<std::basic_string<charT>> outSplit;
-
-		for(auto i=0; str.length() > i; i++) {
-			auto c = str[i];
-			if(!characterSet.is_character(c)) {
-
-				for(auto n=i; str.length() > n; n++) {
-					auto otherC = str[n];
-					if(characterSet.is_character(otherC)) {
-						outSplit.push_back(str.substr(i, n - i));
-					}
-				}
-
+		
+		auto lastIndex = 0;
+		auto index=0;
+		for(; str.length() > index; index++) {
+			typename string_type::value_type c = str[index];
+			
+			if( characterSet.is_character(c) ) {
+				
+				auto n = 0;
+				
+				do {
+					n++;
+					c = str[index + n];
+				} while( characterSet.is_character(c) );
+				
+				outSplit.push_back(str.substr(lastIndex, index - lastIndex));
+				
+				index += n;
+				lastIndex = index;
 			}
-		}
 
+		}
+		
+		if( lastIndex < str.length() ) {
+			outSplit.push_back(str.substr(lastIndex));
+		}
+		
 		return outSplit;
 	}
 	
@@ -342,6 +378,29 @@ namespace utils { inline namespace basic_string {
 	::trim_string(const string_type& str, character_setT characterSet,
 		typename std::enable_if<std::is_integral<character_setT>::value>::type*) {
 		return trim_string(str, single_character_set<character_setT>(characterSet));
+	}
+	
+	template<typename charT, typename traitsT, typename allocatorT>
+	std::basic_string<charT, traitsT, allocatorT> detail::basic_string_utils<charT, traitsT, allocatorT>
+	::replace_string(const string_type& str, const string_type& matching_str, const string_type& replace_str) {
+		constexpr auto npos = string_type::npos;
+		
+		string_type retStr;
+		
+		auto idx = str.find(matching_str);
+		auto lastIdx = 0;
+		
+		for(; idx != npos; idx = str.find(matching_str, lastIdx)) {
+			
+			retStr += str.substr(lastIdx, idx - lastIdx);
+			retStr += replace_str;
+			
+			lastIdx = idx + matching_str.length();
+		}
+		
+		retStr += str.substr(lastIdx);
+		
+		return retStr;
 	}
 	
 }}// namespace utils::basic_string
